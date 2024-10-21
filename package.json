@@ -1,0 +1,30 @@
+{
+  "name": "demo-vrm",
+  "version": "0.1.0",
+  "description": "Demo for VRM",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "test": "echo true"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yj1438/demo-vrm.git"
+  },
+  "keywords": [
+    "vrm",
+    "webgl"
+  ],
+  "author": "yj1438@163.com",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yj1438/demo-vrm/issues"
+  },
+  "homepage": "https://github.com/yj1438/demo-vrm#readme",
+  "dependencies": {
+    "ammo.js": "^0.0.10",
+    "three": "^0.169.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.9"
+  }
+}
