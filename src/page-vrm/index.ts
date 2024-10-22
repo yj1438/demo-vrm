@@ -6,28 +6,26 @@ import { drawTest } from './draw-test';
 // init
 const canvasEle = document.getElementById('J_canvas') as HTMLCanvasElement;
 const renderer = new THREE.WebGLRenderer({
-	antialias: true,
+	// antialias: true,
 	alpha: true,
 	canvas: canvasEle
 });
-
 // document.body.appendChild( renderer.domElement );
-const clock = new THREE.Clock();
-
-const tickerRenderEvent = new THREE.EventDispatcher<any>();
-const tickerRenderFn = (drawFn) => {
-  tickerRenderEvent.addEventListener('render', (event) => {
-    drawFn(event.clock);
-  });
-};
 
 const width = window.innerWidth;
 const height = window.innerHeight;
 
+// camera
+const camera = new THREE.PerspectiveCamera(45, width / height, 0.01, 1000);
+camera.position.set(0.0, 0.5, 5.0)
+
+// scene
 const scene = new THREE.Scene();
 
-const camera = new THREE.PerspectiveCamera(45, width / height, 0.01, 1000);
-camera.position.set(0.0, 5.5, 80.0)
+// light
+const light = new THREE.DirectionalLight( 0xffffff, Math.PI );
+light.position.set( 1.0, 1.0, 1.0 ).normalize();
+scene.add( light );
 
 // grid
 const gridHelper = new THREE.PolarGridHelper(
@@ -39,6 +37,15 @@ const gridHelper = new THREE.PolarGridHelper(
 	undefined,
 )
 scene.add(gridHelper)
+
+// frame render ticker
+const clock = new THREE.Clock();
+const tickerRenderEvent = new THREE.EventDispatcher<any>();
+const tickerRenderFn = (drawFn) => {
+  tickerRenderEvent.addEventListener('render', (event) => {
+    drawFn(event.clock);
+  });
+};
 
 // animation
 function animate(_time) {
@@ -56,7 +63,7 @@ renderer.setAnimationLoop(animate);
 loadVrm(scene, tickerRenderFn);
 
 // pmx
-loadPmx(scene, tickerRenderFn);
+// loadPmx(scene, tickerRenderFn);
 
 // test
 drawTest(scene, tickerRenderFn);
