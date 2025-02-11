@@ -25,7 +25,6 @@ export function loadPmx (scene: THREE.Scene, tickerRenderFn: (fn: (clock: THREE.
     // path to PMD/PMX file
     '/models/kizunaai/kizunaai.pmx',
     ['/models/mmd/vmds/wavefile_v2.vmd'],
-    // /models/mmd/vmds/wavefile_v2.vmd
     // called when the resource is loaded
     function (mmd) {
       const mesh = mmd.mesh;
@@ -45,7 +44,7 @@ export function loadPmx (scene: THREE.Scene, tickerRenderFn: (fn: (clock: THREE.
       const ikHelper = mmdHelper.objects.get(mesh).ikSolver.createHelper();
       ikHelper.visible = false;
       scene.add(ikHelper);
-
+      
       const physicsHelper = mmdHelper.objects.get(mesh).physics.createHelper();
       physicsHelper.visible = false;
       scene.add(physicsHelper);

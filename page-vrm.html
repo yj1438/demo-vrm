@@ -5,14 +5,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VRM</title>
-  <link type="text/css" rel="stylesheet" href="src/style.css">
+  <link type="text/css" rel="stylesheet" href="src/common/style.css">
 </head>
 
 <body>
 
-  <div>
-    <canvas id="J_canvas"></canvas>
+  <div class="main">
+    <canvas id="J_canvas_main"></canvas>
   </div>
+  <div id="J_camera" class="camera">
+    <video id="J_camera_video"
+      autoplay muted playsinline
+      width="640" height="480"
+      style="width: 320px; height: 240px;"
+    ></video>
+  </div>
+  <div id="J_info" class="data-info">
+    <!-- 动态信息 -->
+  </div>
+
   <script src="/ammo.js"></script>
   <script type="module" src="src/page-vrm/index.ts"></script>
 </body>

@@ -1,0 +1,27 @@
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Face Landmarker</title>
+  <link rel="stylesheet" href="/src/common/style.css">
+</head>
+<body>
+  <div>
+    <h1>身体识别: 图片</h1>
+    <label for="slt_image">选择一张图片：</label><input id="J_btn_image" name="slt_image" type="file" accept="image/*" />
+    <div id="J_view_image" style="position: relative;">
+      <!--  -->
+    </div>
+  </div>
+
+  <div>
+    <h1>身体识别: 视频</h1>
+    <button id="J_btn_video">开始摄像头视频</button>
+    <div id="J_view_video" style="position: relative;">
+      <!--  -->
+    </div>
+  </div>
+
+  <script type="module" src="/src/page-pose-1/index.ts"></script>
+</body>
+</html>

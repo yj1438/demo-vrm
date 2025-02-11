@@ -22,7 +22,9 @@
   },
   "homepage": "https://github.com/yj1438/demo-vrm#readme",
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.17",
     "@pixiv/three-vrm": "^3.1.4",
+    "@tweenjs/tween.js": "^25.0.0",
     "ammo.js": "^0.0.10",
     "three": "^0.169.0"
   },
