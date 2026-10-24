@@ -5,9 +5,10 @@ import { getFilesetResolver } from "../common";
  * 
  */
 let gestureRecognizer: vision.GestureRecognizer = undefined;
+let lastDelegate = '';
 
 /**
- * 
+ *
  */
 export async function getGestureRecognizer(options: vision.GestureRecognizerOptions) {
   const optionsDefault: vision.GestureRecognizerOptions = {
@@ -21,7 +22,20 @@ export async function getGestureRecognizer(options: vision.GestureRecognizerOpti
     runningMode: 'IMAGE', // "IMAGE" | "VIDEO"
   };
 
-  const _options: vision.GestureRecognizerOptions = { ...optionsDefault, ...options };
+  // baseOptions 深合并：调用方只需传 { baseOptions: { delegate: 'CPU' } } 即可覆盖 delegate
+  const _options: vision.GestureRecognizerOptions = {
+    ...optionsDefault,
+    ...options,
+    baseOptions: { ...optionsDefault.baseOptions, ...options.baseOptions },
+  };
+
+  // delegate 变更时重建实例（setOptions 热切换 delegate 不可靠）
+  const delegate = _options.baseOptions.delegate;
+  if (gestureRecognizer && delegate !== lastDelegate) {
+    gestureRecognizer.close();
+    gestureRecognizer = undefined;
+  }
+  lastDelegate = delegate;
 
   if (!gestureRecognizer) {
     const filesetResolver = await getFilesetResolver();

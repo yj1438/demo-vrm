@@ -9,6 +9,7 @@ import { RestingDefault } from './default';
  * https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker#configurations_options
  */
 let poseLandmarker: vision.PoseLandmarker = undefined;
+let lastDelegate = '';
 
 export async function getPoseLandmarker(options: vision.PoseLandmarkerOptions) {
   const optionsDefault: vision.PoseLandmarkerOptions = {
@@ -21,7 +22,20 @@ export async function getPoseLandmarker(options: vision.PoseLandmarkerOptions) {
     outputSegmentationMasks: false,
   };
 
-  const _options: vision.PoseLandmarkerOptions = { ...optionsDefault, ...options };
+  // baseOptions 深合并：调用方只需传 { baseOptions: { delegate: 'CPU' } } 即可覆盖 delegate
+  const _options: vision.PoseLandmarkerOptions = {
+    ...optionsDefault,
+    ...options,
+    baseOptions: { ...optionsDefault.baseOptions, ...options.baseOptions },
+  };
+
+  // delegate 变更时重建实例（setOptions 热切换 delegate 不可靠）
+  const delegate = _options.baseOptions.delegate;
+  if (poseLandmarker && delegate !== lastDelegate) {
+    poseLandmarker.close();
+    poseLandmarker = undefined;
+  }
+  lastDelegate = delegate;
 
   if (!poseLandmarker) {
     const filesetResolver = await getFilesetResolver();

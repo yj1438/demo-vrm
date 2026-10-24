@@ -6,9 +6,10 @@ import { getFilesetResolver } from "../common";
  * 
  */
 let faceLandmarker: vision.FaceLandmarker = undefined;
+let lastDelegate = '';
 
 /**
- * 
+ *
  */
 export async function getFaceLandmarker(options: vision.FaceLandmarkerOptions) {
   const optionsDefault: vision.FaceLandmarkerOptions = {
@@ -22,7 +23,20 @@ export async function getFaceLandmarker(options: vision.FaceLandmarkerOptions) {
     numFaces: 1,
   };
 
-  const _options: vision.FaceLandmarkerOptions = { ...optionsDefault, ...options };
+  // baseOptions 深合并：调用方只需传 { baseOptions: { delegate: 'CPU' } } 即可覆盖 delegate
+  const _options: vision.FaceLandmarkerOptions = {
+    ...optionsDefault,
+    ...options,
+    baseOptions: { ...optionsDefault.baseOptions, ...options.baseOptions },
+  };
+
+  // delegate 变更时重建实例（setOptions 热切换 delegate 不可靠）
+  const delegate = _options.baseOptions.delegate;
+  if (faceLandmarker && delegate !== lastDelegate) {
+    faceLandmarker.close();
+    faceLandmarker = undefined;
+  }
+  lastDelegate = delegate;
 
   if (!faceLandmarker) {
     const filesetResolver = await getFilesetResolver();
