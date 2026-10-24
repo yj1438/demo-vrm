@@ -112,6 +112,27 @@
 3. **引擎层不碰 DOM**（video/canvas 由调用方传入）→ 可测试、可复用
 4. 三个单独页退化为同一组件的三种配置；uni 页 = 组件 + 全开 + Drawer；将来 page-vrm 也是消费端
 5. 模型 URL / wasm 版本集中到一份配置，与 package.json 版本联动
+6. **引擎模式作为配置项**：`engine: 'holistic' | 'separate'`（见第六节调研结论）
+
+## 六、补充调研：HolisticLandmarker（2026-10-24 实测）
+
+Tasks API 存在"老版 Holistic"的等价任务 `HolisticLandmarker`，且 **0.10.21 起就在 JS 包里**（此前未使用）。单模型输出 553 点：脸 478 + blendshape、身体 33 + world 坐标 + 分割 mask、左右手各 21 点（含手指）。官方有 Web/JS 指南，模型 `holistic_landmarker/float16/{1,latest}`。
+
+### 实测结论（tasks-vision 1.1.1，真实浏览器验证页 `page-holistic.html`）
+
+| 组合 | 结果 |
+|------|------|
+| CPU + float16/1 + blendshapes | ✓ 可用 |
+| CPU + latest + blendshapes | ✓ 可用 |
+| GPU + blendshapes | ✗ `UNIMPLEMENTED: ...faceblendshapesgraph...InferenceCalculator failed: No support of const`（WebGL ml_drift/gl30 上下文） |
+
+### 对组件设计的影响
+
+- **Holistic 的 blendshapes 分支在 WebGL GPU 下不可用**，两个选择：
+  - `holistic` 模式 + `delegate: 'CPU'`：单模型全出、自带手指，代价是 CPU 推理开销
+  - 混合方案：`HolisticLandmarker`（GPU，关 blendshapes）+ 独立 `FaceLandmarker`（GPU，开 blendshapes）——两次推理换 GPU 性能，组件内部封装
+- 手指驱动成为可能（21 点/手），补齐 page-vrm 现状"手指无驱动"的缺口
+- 组件默认值建议：`engine: 'holistic'`、`delegate: 'CPU'`；性能敏感场景文档注明混合方案
 
 ## 五、整理顺序（每步可独立验证）
 
