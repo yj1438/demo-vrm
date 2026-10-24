@@ -34,21 +34,25 @@ export function showDebugView(
     if (clearCanvas) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-    // 
+    //
     const colors = ["#FF0000", "#00FF00"];
     for (let i = 0; i < landmarks.length; i++) {
       const _landmarks = landmarks[i];
-      const color = handedness[i][0].categoryName === "Right" ? colors : colors.reverse();
+      // 注意不可用 colors.reverse()：原地反转会污染后续手部的配色
+      const isRight = handedness[i][0].categoryName === "Right";
+      const lineColor = isRight ? colors[0] : colors[1];
+      const pointColor = isRight ? colors[1] : colors[0];
       drawingUtils.drawConnectors(
         _landmarks,
         vision.GestureRecognizer.HAND_CONNECTIONS,
         {
-          color: color[0],
+          color: lineColor,
           lineWidth: 5
         }
       );
       drawingUtils.drawLandmarks(_landmarks, {
-        color: color[1],
+        color: pointColor,
+        fillColor: pointColor,
         lineWidth: 2
       });
     }
@@ -66,8 +70,9 @@ export function showDebugView(
         <li class="blend-shapes-item">
           <span class="blend-shapes-label">${handedness[index][0].categoryName}: ${g.displayName || g.categoryName
         }</span>
-          <span class="blend-shapes-value" style="width: calc(${+g.score * 100
-        }% - 120px)">${(+g.score).toFixed(4)}</span>
+          <span class="blend-shapes-track"><span class="blend-shapes-value" style="width: ${Math.max(2, +g.score * 100)
+        }%"></span></span>
+          <span class="blend-shapes-score">${(+g.score).toFixed(4)}</span>
         </li>
       `;
     });

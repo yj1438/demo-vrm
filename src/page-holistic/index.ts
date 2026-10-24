@@ -1,5 +1,6 @@
 import * as vision from '@mediapipe/tasks-vision';
 import { getFilesetResolver } from '../util/mediapipe/common';
+import { getFaceLandmarker } from '../util/mediapipe/face-landmark/index';
 import { initCamera, requestAnimationFrameWithVideoPlay } from '../util/camera-steam';
 
 /**
@@ -8,56 +9,72 @@ import { initCamera, requestAnimationFrameWithVideoPlay } from '../util/camera-s
  */
 
 const infoEle = document.getElementById('J_info') as HTMLDivElement;
-const viewEle = document.getElementById('J_view') as HTMLDivElement;
-const modelVersionSel = document.getElementById('J_model_version') as HTMLSelectElement;
+const viewImage = document.getElementById('J_view_image') as HTMLDivElement;
+const viewVideo = document.getElementById('J_view_video') as HTMLDivElement;
 const delegateSel = document.getElementById('J_delegate') as HTMLSelectElement;
+const sensSel = document.getElementById('J_sens') as HTMLSelectElement;
+const btnStop = document.getElementById('J_btn_stop') as HTMLButtonElement;
+const statusPill = document.getElementById('J_status') as HTMLSpanElement;
+
+const VIDEO_PLACEHOLDER = '<div class="placeholder">开启摄像头后<br>实时绘制全身体识别结果</div>';
 
 let holistic: vision.HolisticLandmarker | undefined;
-let cancelLoop: (() => void) | undefined;
+let stopLoop: (() => void) | undefined;
+let videoStream: MediaStream | undefined;
+
+type Delegate = 'GPU' | 'CPU';
+const sens = () => +sensSel.value;
+const isGpu = () => delegateSel.value === 'GPU';
+
+function holisticOpts(runningMode: 'IMAGE' | 'VIDEO'): vision.HolisticLandmarkerOptions {
+  return {
+    baseOptions: {
+      modelAssetPath: `https://storage.googleapis.com/mediapipe-models/holistic_landmarker/holistic_landmarker/float16/latest/holistic_landmarker.task`,
+      delegate: delegateSel.value as Delegate,
+    },
+    runningMode,
+    // MediaPipe 限制：Holistic 的表情子图在 WebGL(GPU) 下 UNIMPLEMENTED，
+    // GPU 模式关闭表情，由独立 FaceLandmarker 补充（混合方案）
+    outputFaceBlendshapes: !isGpu(),
+    minFaceDetectionConfidence: sens(),
+    minPoseDetectionConfidence: sens(),
+    minHandLandmarksConfidence: sens(),
+  };
+}
+
+// GPU 模式下补充表情的独立 FaceLandmarker
+async function getSupplementFaceLandmarker(runningMode: 'IMAGE' | 'VIDEO') {
+  return getFaceLandmarker({
+    runningMode,
+    numFaces: 1,
+    outputFacialTransformationMatrixes: false,
+    baseOptions: { delegate: 'GPU' },
+  });
+}
+
+function setStatus(text: string, cls: '' | 'is-loading' | 'is-ok' | 'is-error' = '') {
+  statusPill.textContent = text;
+  statusPill.className = 'status-pill' + (cls ? ' ' + cls : '');
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+}
 
 function setInfo(html: string) {
   infoEle.innerHTML = html;
 }
 
 async function getHolistic(runningMode: 'IMAGE' | 'VIDEO') {
-  const version = modelVersionSel.value;
-  const options: vision.HolisticLandmarkerOptions = {
-    baseOptions: {
-      modelAssetPath: `https://storage.googleapis.com/mediapipe-models/holistic_landmarker/holistic_landmarker/float16/${version}/holistic_landmarker.task`,
-      delegate: delegateSel.value as 'GPU' | 'CPU',
-    },
-    runningMode,
-    outputFaceBlendshapes: true,
-    minFaceDetectionConfidence: 0.3,
-    minPoseDetectionConfidence: 0.3,
-    minHandLandmarksConfidence: 0.3,
-  };
-
+  const options = holisticOpts(runningMode);
   if (!holistic) {
+    setStatus('下载模型中…', 'is-loading');
     const fileset = await getFilesetResolver();
     holistic = await vision.HolisticLandmarker.createFromOptions(fileset, options);
   } else {
     await holistic.setOptions(options);
   }
   return holistic;
-}
-
-/**
- * 创建画布 + 视频容器，返回绘制上下文
- */
-function createView(video?: HTMLVideoElement) {
-  viewEle.innerHTML = '';
-  const canvas = document.createElement('canvas');
-  canvas.style.position = 'absolute';
-  canvas.style.left = '0';
-  canvas.style.top = '0';
-  if (video) {
-    viewEle.appendChild(video);
-  }
-  viewEle.appendChild(canvas);
-  const ctx = canvas.getContext('2d')!;
-  const drawingUtils = new vision.DrawingUtils(ctx);
-  return { canvas, ctx, drawingUtils };
 }
 
 function drawResult(r: vision.HolisticLandmarkerResult, d: vision.DrawingUtils) {
@@ -78,15 +95,26 @@ function drawResult(r: vision.HolisticLandmarkerResult, d: vision.DrawingUtils) 
   }
 }
 
-function resultSummary(r: vision.HolisticLandmarkerResult, ms: number) {
-  const gestureOrEmpty = '';
-  const blendshapeTop = r.faceBlendshapes?.[0]?.categories
+function resultSummary(r: vision.HolisticLandmarkerResult, ms: number, blendshapeOverride?: vision.Classifications[]) {
+  const blendshapeTop = (blendshapeOverride ?? r.faceBlendshapes)?.[0]?.categories
     ?.filter((c) => c.score > 0.3)
-    .map((c) => `${c.categoryName}:${c.score.toFixed(2)}`)
-    .join(', ');
+    .sort((a, b) => b.score - a.score);
+
   return `
-    <div>耗时 ${ms}ms | 脸 ${r.faceLandmarks.length} | 身体 ${r.poseLandmarks.length} | 左手 ${r.leftHandLandmarks.length} | 右手 ${r.rightHandLandmarks.length} ${gestureOrEmpty}</div>
-    ${blendshapeTop ? `<div>显著表情：${blendshapeTop}</div>` : ''}
+    <div class="result-summary">
+      ${ms ? `<span class="stat-chip">耗时 <b>${ms}ms</b></span>` : ''}
+      <span class="stat-chip ${r.faceLandmarks.length ? 'hot' : ''}">脸 <b>${r.faceLandmarks.length}</b></span>
+      <span class="stat-chip ${r.poseLandmarks.length ? 'hot' : ''}">身体 <b>${r.poseLandmarks.length}</b></span>
+      <span class="stat-chip ${r.leftHandLandmarks.length ? 'hot' : ''}">左手 <b>${r.leftHandLandmarks.length}</b></span>
+      <span class="stat-chip ${r.rightHandLandmarks.length ? 'hot' : ''}">右手 <b>${r.rightHandLandmarks.length}</b></span>
+    </div>
+    ${blendshapeTop?.length
+      ? `<div class="panel-title">显著表情（&gt; 0.3）</div>
+         <div class="result-summary">${blendshapeTop
+           .map((c) => `<span class="stat-chip">${c.categoryName} <b>${c.score.toFixed(2)}</b></span>`)
+           .join('')}</div>`
+      : ''
+    }
   `;
 }
 
@@ -94,65 +122,126 @@ function resultSummary(r: vision.HolisticLandmarkerResult, ms: number) {
 document.getElementById('J_btn_image')!.addEventListener('change', async (e) => {
   const file = (e.target as HTMLInputElement).files[0];
   if (!file) return;
+
   try {
     const img = new Image();
-    img.style.maxWidth = '100%';
-    img.src = URL.createObjectURL(file);
-    await img.decode();
-    setInfo('模型加载中...');
-    const hl = await getHolistic('IMAGE');
+    // 注意：img.decode() 对 blob URL 在部分环境下会永久挂起，用 onload 兜底
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('图片加载失败'));
+      img.src = URL.createObjectURL(file);
+    });
 
-    const { canvas, ctx, drawingUtils } = createView();
+    viewImage.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'media-wrap';
+    const canvas = document.createElement('canvas');
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
-    canvas.style.width = `${img.width}px`;
-    canvas.style.height = `${img.height}px`;
-    viewEle.appendChild(img);
+    wrap.append(img, canvas);
+    viewImage.appendChild(wrap);
 
+    const hl = await getHolistic('IMAGE');
+
+    // GPU 模式下表情由独立 FaceLandmarker 补充（Holistic 表情子图不支持 WebGL）
+    let blendshapes: vision.Classifications[] | undefined;
+    if (isGpu()) {
+      const fl = await getSupplementFaceLandmarker('IMAGE');
+      blendshapes = fl.detect(img).faceBlendshapes;
+    }
+
+    setStatus('识别中…', 'is-loading');
     const t0 = performance.now();
     const r = hl.detect(img);
     const ms = Math.round(performance.now() - t0);
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const drawingUtils = new vision.DrawingUtils(canvas.getContext('2d')!);
     drawResult(r, drawingUtils);
     setInfo(resultSummary(r, ms));
+    setStatus(`完成 · ${ms}ms`, 'is-ok');
   } catch (err) {
-    setInfo(`<div style="color:red">出错了：${String((err as Error).message || err)}</div>`);
+    setStatus('识别失败', 'is-error');
+    setInfo(`<div class="error-text">${escapeHtml(String((err as Error).message || err))}</div>`);
   }
 });
 
-// ============ 摄像头识别 ============
-document.getElementById('J_btn_video')!.addEventListener('click', async () => {
-  try {
-    const video = document.createElement('video');
-    video.playsInline = true;
-    video.autoplay = true;
-    video.muted = true;
-    setInfo('等待摄像头权限...');
-    await getHolistic('VIDEO');
+// ============ 摄像头识别：可启动 / 停止 / 配置变更时自动重启 ============
+async function startVideo() {
+  if (stopLoop) return; // 已在运行
 
-    initCamera(video, () => {
-      const { canvas, ctx, drawingUtils } = createView(video);
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+  const video = document.createElement('video');
+  video.playsInline = true;
+  video.autoplay = true;
+  video.muted = true;
 
-      cancelLoop = requestAnimationFrameWithVideoPlay(video, ({ changed, timestamp }) => {
-        if (!holistic || !changed) return;
+  initCamera(video, async () => {
+    video.style.width = '';
+    video.style.height = '';
+    videoStream = video.srcObject as MediaStream;
+
+    try {
+      const hl = await getHolistic('VIDEO');
+      // GPU 模式下表情由独立 FaceLandmarker 补充
+      const supplementFace = isGpu() ? await getSupplementFaceLandmarker('VIDEO') : undefined;
+
+      viewVideo.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.className = 'media-wrap';
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      wrap.append(video, canvas);
+      viewVideo.appendChild(wrap);
+
+      const drawingUtils = new vision.DrawingUtils(canvas.getContext('2d')!);
+      setStatus('实时识别中', 'is-ok');
+      btnStop.hidden = false;
+
+      let lastInfoAt = 0;
+      stopLoop = requestAnimationFrameWithVideoPlay(video, ({ changed, timestamp }) => {
+        if (!changed || !holistic) return;
         const r = holistic.detectForVideo(video, timestamp);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const bs = supplementFace ? supplementFace.detectForVideo(video, timestamp).faceBlendshapes : undefined;
         drawResult(r, drawingUtils);
-        setInfo(resultSummary(r, 0));
-      });
-    });
-  } catch (err) {
-    setInfo(`<div style="color:red">出错了：${String((err as Error).message || err)}（摄像头被拒绝或不可用？）</div>`);
-  }
-});
 
-// ============ 停止 ============
-document.getElementById('J_btn_stop')!.addEventListener('click', () => {
-  cancelLoop?.();
-  cancelLoop = undefined;
-  viewEle.innerHTML = '';
-  setInfo('已停止');
+        // 结果面板节流刷新（约 5fps）
+        const now = performance.now();
+        if (now - lastInfoAt > 200) {
+          lastInfoAt = now;
+          setInfo(resultSummary(r, 0, bs));
+        }
+      });
+    } catch (err) {
+      setStatus('识别失败', 'is-error');
+      setInfo(`<div class="error-text">${escapeHtml(String((err as Error).message || err))}（摄像头被拒绝或不可用？）</div>`);
+    }
+  });
+}
+
+function stopVideo() {
+  stopLoop?.();
+  stopLoop = undefined;
+
+  videoStream?.getTracks().forEach((track) => track.stop());
+  videoStream = undefined;
+
+  viewVideo.innerHTML = VIDEO_PLACEHOLDER;
+  btnStop.hidden = true;
+  setStatus('已停止');
+  setInfo('<div class="empty-hint">等待识别输入</div>');
+}
+
+document.getElementById('J_btn_video')!.addEventListener('click', startVideo);
+btnStop.addEventListener('click', stopVideo);
+
+// 配置变更：视频运行中则自动重启以应用新配置；图片模式在下次上传时生效
+[delegateSel, sensSel].forEach((sel) => {
+  sel.addEventListener('change', () => {
+    if (stopLoop) {
+      stopVideo();
+      startVideo();
+    } else {
+      setStatus('配置已更新', 'is-ok');
+    }
+  });
 });

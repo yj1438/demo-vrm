@@ -1,25 +1,73 @@
+<!DOCTYPE html>
 <html lang="zh-cn">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-  <title>Face Landmarker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pose Landmarker · 身体识别</title>
   <link rel="stylesheet" href="/src/common/style.css">
 </head>
 <body>
-  <div>
-    <h1>身体识别: 图片</h1>
-    <label for="slt_image">选择一张图片：</label><input id="J_btn_image" name="slt_image" type="file" accept="image/*" />
-    <div id="J_view_image" style="position: relative;">
-      <!--  -->
-    </div>
-  </div>
+  <div class="app">
+    <header class="app-header">
+      <div class="app-title">身体识别 <span class="badge">PoseLandmarker</span></div>
+      <div class="app-subtitle">33 关键点 + world 坐标 · OpenPose18 转换调试</div>
+    </header>
 
-  <div>
-    <h1>身体识别: 视频</h1>
-    <button id="J_btn_video">开始摄像头视频</button>
-    <div id="J_view_video" style="position: relative;">
-      <!--  -->
-    </div>
+    <section class="toolbar">
+      <label class="btn btn-primary">
+        上传图片
+        <input id="J_btn_image" type="file" accept="image/*" hidden>
+      </label>
+      <button class="btn" id="J_btn_video">开启摄像头</button>
+      <div class="toolbar-spacer"></div>
+      <span class="toolbar-label">推理</span>
+      <select class="select" id="J_delegate">
+        <option value="GPU" selected>GPU</option>
+        <option value="CPU">CPU</option>
+      </select>
+<span class="toolbar-label">灵敏度</span>
+      <select class="select" id="J_sens">
+        <option value="0.1">0.1 最宽松</option>
+        <option value="0.3" selected>0.3 宽松</option>
+        <option value="0.5">0.5 标准</option>
+        <option value="0.7">0.7 严格</option>
+      </select>
+<span class="toolbar-label">人数</span>
+      <select class="select" id="J_num_poses">
+        <option value="1" selected>1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+      </select>
+      <span class="status-pill" id="J_status">就绪</span>
+    </section>
+
+    <main class="stage">
+      <div>
+        <div class="card">
+          <div class="card-header">图片识别</div>
+          <div class="card-body">
+            <div class="viewport" id="J_view_image">
+              <div class="placeholder">上传一张全身照<br>身体骨架将叠加绘制</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">摄像头识别</div>
+          <div class="card-body">
+            <div class="viewport" id="J_view_video">
+              <div class="placeholder">开启摄像头后<br>实时绘制身体骨架</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="inspector card">
+        <div class="card-header">识别结果</div>
+        <div class="card-body" id="J_info">
+          <div class="empty-hint">等待识别输入</div>
+        </div>
+      </aside>
+    </main>
   </div>
 
   <script type="module" src="/src/page-pose-1/index.ts"></script>

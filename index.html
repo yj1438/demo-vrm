@@ -1,17 +1,55 @@
 <!DOCTYPE html>
 <html lang="zh-cn">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VRM</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MediaPipe 人体识别调试台</title>
+  <link rel="stylesheet" href="/src/common/style.css">
 </head>
 <body>
-    <a href="page-vrm.html">VRM</a>
-    <a href="page-face.html">Face</a>
-    <a href="page-gesture.html">Gesture</a>
-    <a href="page-pose.html">Pose</a>
-    <a href="page-tween.html">Tween</a>
-    <a href="page-uni.html">Uni</a>
-    <script type="module" src="src/index.ts"></script>
+  <div class="app">
+    <header class="landing-hero">
+      <div class="app-title">MediaPipe 人体识别调试台</div>
+      <div class="app-subtitle">@mediapipe/tasks-vision 1.1.1 · 面部 / 身体 / 手势 / 全身体 Holistic</div>
+    </header>
+
+    <nav class="landing-grid">
+      <a class="landing-card is-primary" href="page-uni.html">
+        <div class="landing-card-title">综合识别 <span class="arrow">→</span></div>
+        <div class="landing-card-desc">面部 + 身体 + 手势，三识别器联合调试，支持图片与摄像头</div>
+        <div class="landing-card-tags">FaceLandmarker · PoseLandmarker · GestureRecognizer</div>
+      </a>
+      <a class="landing-card" href="page-holistic.html">
+        <div class="landing-card-title">Holistic 全身体 <span class="badge">单模型</span> <span class="arrow">→</span></div>
+        <div class="landing-card-desc">单模型输出 553 点：脸 478 + 表情、身体 33、双手各 21（含手指）</div>
+        <div class="landing-card-tags">HolisticLandmarker</div>
+      </a>
+      <a class="landing-card" href="page-face.html">
+        <div class="landing-card-title">面部识别 <span class="arrow">→</span></div>
+        <div class="landing-card-desc">478 关键点 · ARKit52 表情系数 · 面部变换矩阵</div>
+        <div class="landing-card-tags">FaceLandmarker</div>
+      </a>
+      <a class="landing-card" href="page-gesture.html">
+        <div class="landing-card-title">手势识别 <span class="arrow">→</span></div>
+        <div class="landing-card-desc">双手 21 关键点 · 手势分类</div>
+        <div class="landing-card-tags">GestureRecognizer</div>
+      </a>
+      <a class="landing-card" href="page-pose.html">
+        <div class="landing-card-title">身体识别 <span class="arrow">→</span></div>
+        <div class="landing-card-desc">33 关键点 + world 坐标 · OpenPose18 转换调试</div>
+        <div class="landing-card-tags">PoseLandmarker</div>
+      </a>
+      <a class="landing-card" href="page-vrm.html">
+        <div class="landing-card-title">VRM 动捕 <span class="arrow">→</span></div>
+        <div class="landing-card-desc">摄像头驱动 VRM 模型：表情映射 + 头部/手臂骨骼</div>
+        <div class="landing-card-tags">three.js · @pixiv/three-vrm</div>
+      </a>
+      <a class="landing-card" href="page-tween.html">
+        <div class="landing-card-title">Tween 实验 <span class="arrow">→</span></div>
+        <div class="landing-card-desc">补间动画基础实验</div>
+        <div class="landing-card-tags">@tweenjs/tween.js</div>
+      </a>
+    </nav>
+  </div>
 </body>
 </html>

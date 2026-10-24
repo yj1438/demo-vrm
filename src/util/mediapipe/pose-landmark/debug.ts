@@ -81,7 +81,7 @@ export function showDebugView(
         <li class="blend-shapes-item">
           <span class="blend-shapes-label">${index
         }</span>
-          <span class="blend-shapes-value">x:${(+mark.x).toFixed(4)},y:${(+mark.y).toFixed(4)},z:${(+mark.z).toFixed(4)}</span>
+          <span class="blend-shapes-score is-text">x:${(+mark.x).toFixed(4)},y:${(+mark.y).toFixed(4)},z:${(+mark.z).toFixed(4)}</span>
         </li>
       `;
     });

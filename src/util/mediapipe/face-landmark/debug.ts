@@ -105,8 +105,9 @@ export function showDebugView(
         <li class="blend-shapes-item">
           <span class="blend-shapes-label">${shape.displayName || shape.categoryName
         }</span>
-          <span class="blend-shapes-value" style="width: calc(${+shape.score * 100
-        }% - 120px)">${(+shape.score).toFixed(4)}</span>
+          <span class="blend-shapes-track"><span class="blend-shapes-value" style="width: ${Math.max(2, +shape.score * 100)
+        }%"></span></span>
+          <span class="blend-shapes-score">${(+shape.score).toFixed(4)}</span>
         </li>
       `;
     });

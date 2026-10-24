@@ -3,30 +3,68 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Holistic 全身体识别测试</title>
+  <title>Holistic · 全身体识别</title>
   <link rel="stylesheet" href="/src/common/style.css">
 </head>
 <body>
-  <div>
-    <h1>Holistic 全身体识别（脸 + 身体 + 双手，单模型）</h1>
-    <p>
-      模型版本：
-      <select id="J_model_version">
-        <option value="1" selected>float16/1（锁定版本）</option>
-        <option value="latest">float16/latest</option>
+  <div class="app">
+    <header class="app-header">
+      <div class="app-title">Holistic 全身体识别 <span class="badge">单模型 · 553 点</span></div>
+      <div class="app-subtitle">面部 478 点 + ARKit52 表情 · 身体 33 点 + 分割 · 左右手各 21 点（含手指）</div>
+    </header>
+
+    <section class="toolbar">
+      <label class="btn btn-primary">
+        上传图片
+        <input id="J_btn_image" type="file" accept="image/*" hidden>
+      </label>
+      <button class="btn" id="J_btn_video">开启摄像头</button>
+      <button class="btn btn-danger" id="J_btn_stop" hidden>停止</button>
+      <div class="toolbar-spacer"></div>
+      <span class="toolbar-label">推理</span>
+      <select class="select" id="J_delegate">
+        <option value="CPU" selected>CPU（表情内置）</option>
+        <option value="GPU">GPU（表情由独立模型补充）</option>
       </select>
-      delegate：
-      <select id="J_delegate">
-        <option value="CPU" selected>CPU（Holistic 的 blendshapes 分支 GPU 下会报 UNIMPLEMENTED）</option>
-        <option value="GPU">GPU</option>
+      <span class="toolbar-label">灵敏度</span>
+      <select class="select" id="J_sens">
+        <option value="0.1">0.1 最宽松</option>
+        <option value="0.3" selected>0.3 宽松</option>
+        <option value="0.5">0.5 标准</option>
+        <option value="0.7">0.7 严格</option>
       </select>
-      <input id="J_btn_image" type="file" accept="image/*" />
-      <button id="J_btn_video">开始摄像头</button>
-      <button id="J_btn_stop">停止</button>
-    </p>
-    <div id="J_info"></div>
-    <div id="J_view" style="position: relative;"></div>
+      <span class="status-pill" id="J_status">就绪</span>
+    </section>
+
+    <main class="stage">
+      <div>
+        <div class="card">
+          <div class="card-header">图片识别</div>
+          <div class="card-body">
+            <div class="viewport" id="J_view_image">
+              <div class="placeholder">上传一张包含人物的图片<br>脸部 / 身体 / 双手将叠加绘制</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">摄像头识别</div>
+          <div class="card-body">
+            <div class="viewport" id="J_view_video">
+              <div class="placeholder">开启摄像头后<br>实时绘制全身体识别结果</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="inspector card">
+        <div class="card-header">识别结果</div>
+        <div class="card-body" id="J_info">
+          <div class="empty-hint">等待识别输入</div>
+        </div>
+      </aside>
+    </main>
   </div>
+
   <script type="module" src="/src/page-holistic/index.ts"></script>
 </body>
 </html>

@@ -1,142 +1,235 @@
-import * as vision from "@mediapipe/tasks-vision";
+import * as vision from '@mediapipe/tasks-vision';
 import { getGestureRecognizer } from '../util/mediapipe/gesture-landmark/index';
 import { showDebugView as showDebugViewForGesture } from '../util/mediapipe/gesture-landmark/debug';
 import { getFaceLandmarker } from '../util/mediapipe/face-landmark/index';
 import { showDebugView as showDebugViewForFace } from '../util/mediapipe/face-landmark/debug';
 import { getPoseLandmarker } from '../util/mediapipe/pose-landmark/index';
 import { showDebugView as showDebugViewForPose } from '../util/mediapipe/pose-landmark/debug';
-import { initCamera, requestAnimationFrameWithVideoPlay } from "../util/camera-steam";
+import { initCamera, requestAnimationFrameWithVideoPlay } from '../util/camera-steam';
 
-// 图片按钮
-const btnImage = document.getElementById("J_btn_image"); // image input
-const viewImage = document.getElementById("J_view_image");
+const btnImage = document.getElementById('J_btn_image') as HTMLInputElement;
+const btnVideo = document.getElementById('J_btn_video') as HTMLButtonElement;
+const btnStop = document.getElementById('J_btn_stop') as HTMLButtonElement;
+const statusPill = document.getElementById('J_status') as HTMLSpanElement;
+const viewImage = document.getElementById('J_view_image') as HTMLDivElement;
+const viewVideo = document.getElementById('J_view_video') as HTMLDivElement;
+const infoEle = document.getElementById('J_info') as HTMLDivElement;
+const delegateSel = document.getElementById('J_delegate') as HTMLSelectElement;
+const sensSel = document.getElementById('J_sens') as HTMLSelectElement;
+const numFacesSel = document.getElementById('J_num_faces') as HTMLSelectElement;
+const numHandsSel = document.getElementById('J_num_hands') as HTMLSelectElement;
+
+const VIDEO_PLACEHOLDER = '<div class="placeholder">开启摄像头后<br>实时绘制三类识别结果</div>';
+
+type Delegate = 'GPU' | 'CPU';
+const sens = () => +sensSel.value;
+
+function faceOpts(runningMode: 'IMAGE' | 'VIDEO'): vision.FaceLandmarkerOptions {
+  return {
+    runningMode,
+    numFaces: +numFacesSel.value,
+    minFaceDetectionConfidence: sens(),
+    minFacePresenceConfidence: sens(),
+    baseOptions: { delegate: delegateSel.value as Delegate },
+  };
+}
+
+function poseOpts(runningMode: 'IMAGE' | 'VIDEO'): vision.PoseLandmarkerOptions {
+  return {
+    runningMode,
+    minPoseDetectionConfidence: sens(),
+    minPosePresenceConfidence: sens(),
+    baseOptions: { delegate: delegateSel.value as Delegate },
+  };
+}
+
+function gestureOpts(runningMode: 'IMAGE' | 'VIDEO'): vision.GestureRecognizerOptions {
+  return {
+    runningMode,
+    numHands: +numHandsSel.value,
+    minHandDetectionConfidence: sens(),
+    minHandPresenceConfidence: sens(),
+    baseOptions: { delegate: delegateSel.value as Delegate },
+  };
+}
+
+function setStatus(text: string, cls: '' | 'is-loading' | 'is-ok' | 'is-error' = '') {
+  statusPill.textContent = text;
+  statusPill.className = 'status-pill' + (cls ? ' ' + cls : '');
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+}
 
 /**
- * 加载本地图片
+ * 结果面板：身体 / 面部 / 手势 各一块，避免单一 info 元素互相覆盖
  */
-btnImage.addEventListener("change", (e) => {
-  // 把本地加载的图片显示在 viewImage 中
-  const file = (e.target as HTMLInputElement).files[0];
-  const url = URL.createObjectURL(file);
-  //
-  const img = new Image();
-  img.style.maxWidth = "100%";
-  img.src = url;
-  viewImage.appendChild(img);
+const infoPanels = (() => {
+  infoEle.innerHTML = '';
+  const make = (title: string) => {
+    const titleEle = document.createElement('div');
+    titleEle.className = 'panel-title';
+    titleEle.textContent = title;
+    const bodyEle = document.createElement('div');
+    bodyEle.innerHTML = '<div class="empty-hint">未检出</div>';
+    infoEle.append(titleEle, bodyEle);
+    return bodyEle;
+  };
+  return {
+    pose: make('身体 · 33 关键点'),
+    face: make('面部 · ARKit52 表情'),
+    gesture: make('手势 · 分类'),
+  };
+})();
 
-  //
-  detectImage(img);
+function clearInfoPanels() {
+  Object.values(infoPanels).forEach((ele) => {
+    ele.innerHTML = '<div class="empty-hint">未检出</div>';
+  });
+}
+
+/**
+ * 图片识别
+ */
+btnImage.addEventListener('change', async (e) => {
+  const file = (e.target as HTMLInputElement).files[0];
+  if (!file) return;
+
+  try {
+    setStatus('加载模型中…', 'is-loading');
+    // 串行创建：并行的 GPU 图初始化会互相竞争导致卡死
+    const poseLandmarker = await getPoseLandmarker(poseOpts('IMAGE'));
+    const faceLandmarker = await getFaceLandmarker(faceOpts('IMAGE'));
+    const gestureRecognizer = await getGestureRecognizer(gestureOpts('IMAGE'));
+
+    const img = new Image();
+    // 注意：img.decode() 对 blob URL 在部分环境下会永久挂起，用 onload 兜底
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('图片加载失败'));
+      img.src = URL.createObjectURL(file);
+    });
+
+    // 重建视口：.media-wrap 由媒体撑开，canvas 绝对定位铺满 —— 对齐交给 CSS
+    viewImage.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'media-wrap';
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    wrap.append(img, canvas);
+    viewImage.appendChild(wrap);
+
+    setStatus('识别中…', 'is-loading');
+    const t0 = performance.now();
+    const poseResult = poseLandmarker.detect(img);
+    const faceResult = faceLandmarker.detect(img);
+    const gestureResult = gestureRecognizer.recognize(img);
+    const ms = Math.round(performance.now() - t0);
+
+    clearInfoPanels();
+    showDebugViewForPose(poseResult, { canvas, infoElement: infoPanels.pose });
+    showDebugViewForFace(faceResult, { canvas, infoElement: infoPanels.face });
+    showDebugViewForGesture(gestureResult, { canvas, infoElement: infoPanels.gesture });
+
+    setStatus(`完成 · ${ms}ms`, 'is-ok');
+  } catch (err) {
+    setStatus('识别失败', 'is-error');
+    infoEle.innerHTML = `<div class="error-text">${escapeHtml(String((err as Error).message || err))}</div>`;
+  }
 });
 
 /**
- * 识别图片
+ * 摄像头识别：可启动 / 停止 / 配置变更时自动重启
  */
-async function detectImage(image: HTMLImageElement) {
-  const poseLandmarker = await getPoseLandmarker({ runningMode: "IMAGE" });
-  const poseLandmarkerResult: vision.PoseLandmarkerResult = poseLandmarker.detect(image);
+let stopLoop: (() => void) | undefined;
+let videoStream: MediaStream | undefined;
 
-  const faceLandmarker = await getFaceLandmarker({ runningMode: "IMAGE" });
-  const faceLandmarkerResult: vision.FaceLandmarkerResult = faceLandmarker.detect(image);
+async function startVideo() {
+  if (stopLoop) return; // 已在运行，防止叠加多路视频
 
-  const gestureRecognizer = await getGestureRecognizer({ runningMode: "IMAGE" });
-  const gestureRecognizerResult: vision.GestureRecognizerResult = gestureRecognizer.recognize(image);
-
-  // debug view
-  const canvas = document.createElement("canvas") as HTMLCanvasElement;
-  canvas.width = image.naturalWidth;
-  canvas.height = image.naturalHeight;
-  canvas.style.position = "absolute";
-  canvas.style.left = "0px";
-  canvas.style.top = "0px";
-  canvas.style.width = `${image.clientWidth}px`;
-  canvas.style.height = `${image.clientHeight}px`;
-  viewImage.appendChild(canvas);
-
-  const ctx = canvas.getContext("2d");
-
-  //
-  const infoEle = document.createElement("div");
-  infoEle.style.position = "absolute";
-  infoEle.style.left = "0px";
-  infoEle.style.top = "0px";
-  viewImage.appendChild(infoEle);
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  showDebugViewForPose(poseLandmarkerResult, { canvas, infoElement: infoEle, clearCanvas: false });
-  showDebugViewForFace(faceLandmarkerResult, { canvas, infoElement: infoEle, clearCanvas: false });
-  showDebugViewForGesture(gestureRecognizerResult, { canvas, infoElement: infoEle, clearCanvas: false });
-}
-
-// 视频按钮
-const btnVideo = document.getElementById("J_btn_video"); // video input
-const viewVideo = document.getElementById("J_view_video");
-
-/**
- * 打开本地摄像头，加载视频流
- */
-btnVideo.addEventListener("click", (e) => {
-  const video = document.createElement("video");
-  // video.style.maxWidth = "100%";
+  const video = document.createElement('video');
   video.playsInline = true;
   video.autoplay = true;
   video.muted = true;
-  viewVideo.appendChild(video);
-  
-  initCamera(video, () => {
-    detectVideo(video);
+
+  initCamera(video, async () => {
+    // initCamera 写的内联宽高交给 CSS 接管
+    video.style.width = '';
+    video.style.height = '';
+    videoStream = video.srcObject as MediaStream;
+
+    try {
+      setStatus('加载模型中…', 'is-loading');
+      // 串行创建：并行的 GPU 图初始化会互相竞争导致卡死
+      const poseLandmarker = await getPoseLandmarker(poseOpts('VIDEO'));
+      const faceLandmarker = await getFaceLandmarker(faceOpts('VIDEO'));
+      const gestureRecognizer = await getGestureRecognizer(gestureOpts('VIDEO'));
+
+      viewVideo.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.className = 'media-wrap';
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      wrap.append(video, canvas);
+      viewVideo.appendChild(wrap);
+
+      setStatus('实时识别中', 'is-ok');
+      btnStop.hidden = false;
+
+      let lastInfoAt = 0;
+      stopLoop = requestAnimationFrameWithVideoPlay(video, ({ changed, timestamp }) => {
+        if (!changed) return;
+
+        const poseResult = poseLandmarker.detectForVideo(video, timestamp);
+        const faceResult = faceLandmarker.detectForVideo(video, timestamp);
+        const gestureResult = gestureRecognizer.recognizeForVideo(video, timestamp);
+
+        showDebugViewForPose(poseResult, { canvas, clearCanvas: false });
+        showDebugViewForFace(faceResult, { canvas, clearCanvas: false });
+        showDebugViewForGesture(gestureResult, { canvas, clearCanvas: false });
+
+        // 结果面板节流刷新（约 5fps），避免高频 DOM 写入
+        const now = performance.now();
+        if (now - lastInfoAt > 200) {
+          lastInfoAt = now;
+          showDebugViewForPose(poseResult, { infoElement: infoPanels.pose });
+          showDebugViewForFace(faceResult, { infoElement: infoPanels.face });
+          showDebugViewForGesture(gestureResult, { infoElement: infoPanels.gesture });
+        }
+      });
+    } catch (err) {
+      setStatus('识别失败', 'is-error');
+      infoEle.innerHTML = `<div class="error-text">${escapeHtml(String((err as Error).message || err))}</div>`;
+    }
+  });
+}
+
+function stopVideo() {
+  stopLoop?.();
+  stopLoop = undefined;
+
+  videoStream?.getTracks().forEach((track) => track.stop());
+  videoStream = undefined;
+
+  viewVideo.innerHTML = VIDEO_PLACEHOLDER;
+  btnStop.hidden = true;
+  setStatus('已停止');
+}
+
+btnVideo.addEventListener('click', startVideo);
+btnStop.addEventListener('click', stopVideo);
+
+// 配置变更：视频运行中则自动重启以应用新配置；图片模式在下次上传时生效
+[delegateSel, sensSel, numFacesSel, numHandsSel].forEach((sel) => {
+  sel.addEventListener('change', () => {
+    if (stopLoop) {
+      stopVideo();
+      startVideo();
+    } else {
+      setStatus('配置已更新', 'is-ok');
+    }
   });
 });
-
-async function detectVideo(video: HTMLVideoElement) {
-  const poseLandmarker = await getPoseLandmarker({ runningMode: "VIDEO" });
-  const faceLandmarker = await getFaceLandmarker({ runningMode: "VIDEO" });
-  const gestureRecognizer = await getGestureRecognizer({ runningMode: "VIDEO" });
-
-  // debug view
-  const canvas = document.createElement("canvas") as HTMLCanvasElement;
-  canvas.style.position = "absolute";
-  canvas.style.left = "0px";
-  canvas.style.top = "0px";
-  // 和 video size 一致
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.style.width = `${video.clientWidth}px`;
-  canvas.style.height = `${video.clientHeight}px`;
-  
-  viewVideo.appendChild(canvas);
-
-  const ctx = canvas.getContext("2d");
-
-  //
-  const infoEle = document.createElement("div");
-  infoEle.style.position = "absolute";
-  infoEle.style.left = "0px";
-  infoEle.style.top = "0px";
-  viewVideo.appendChild(infoEle);
-
-  // raf
-  let poseLandmarkerResult = undefined;
-  let faceLandmarkerResult = undefined;
-  let gestureRecognizerResult = undefined;
-
-  const _cancelAnimationFrame = requestAnimationFrameWithVideoPlay(video, (data) => {
-    const { changed, timestamp } = data;
-    if (changed) {
-      poseLandmarkerResult = poseLandmarker.detectForVideo(video, timestamp);
-      faceLandmarkerResult = faceLandmarker.detectForVideo(video, timestamp);
-      gestureRecognizerResult = gestureRecognizer.recognizeForVideo(video, timestamp);
-    }
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    showDebugViewForPose(poseLandmarkerResult, { canvas, infoElement: infoEle, clearCanvas: false });
-    showDebugViewForFace(faceLandmarkerResult, { canvas, infoElement: infoEle, clearCanvas: false });
-    showDebugViewForGesture(gestureRecognizerResult, { canvas, infoElement: infoEle, clearCanvas: false });
-  });
-
-  return () => {
-    // poseLandmarker.close();
-    // faceLandmarker.close();
-    // gestureRecognizer.close();
-    _cancelAnimationFrame();
-  };
-}
