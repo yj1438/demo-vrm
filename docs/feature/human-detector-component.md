@@ -72,6 +72,7 @@
 | 8 | 滤波器首帧输出恒为 0（首帧只乘 weight[0]=0）；尖刺阈值 1（弧度）过大不起作用；全局实例池无 reset | `filter-algorithm.ts:44-49` |
 | 9 | 两套手臂解算不一致：`getPoseLandmarkerArmsRotation` 只输出上臂（LowerArm/Hand 注释掉、无出画面兜底），闲置的 `poseLandmarkerResultDataMaker` 反而更完整 | `pose-landmark/index.ts:85-138` |
 | 10 | `initCamera` 在 loadeddata 前用 `video.videoHeight` 算高度（为 0）；宽度写死 `body.clientWidth` | `camera-steam.ts:19-21` |
+| 11 | `img.decode()` 对 blob URL 图片在部分环境会永久挂起（2026-10-24 实测复现，改用 `onload` 兜底） | 已在 uni/holistic 页修复 |
 
 ### P2：工程可维护性
 
@@ -131,8 +132,13 @@ Tasks API 存在"老版 Holistic"的等价任务 `HolisticLandmarker`，且 **0.
 - **Holistic 的 blendshapes 分支在 WebGL GPU 下不可用**，两个选择：
   - `holistic` 模式 + `delegate: 'CPU'`：单模型全出、自带手指，代价是 CPU 推理开销
   - 混合方案：`HolisticLandmarker`（GPU，关 blendshapes）+ 独立 `FaceLandmarker`（GPU，开 blendshapes）——两次推理换 GPU 性能，组件内部封装
+- **混合方案已实测验证可行**（2026-10-25，`page-holistic.html` 已实现）：Holistic GPU 387ms 正常输出身体/手，独立 FaceLandmarker GPU 表情正常；页面 GPU 模式 = Holistic(无表情) + FaceLandmarker(补表情)，CPU 模式 = Holistic 全内置
 - 手指驱动成为可能（21 点/手），补齐 page-vrm 现状"手指无驱动"的缺口
-- 组件默认值建议：`engine: 'holistic'`、`delegate: 'CPU'`；性能敏感场景文档注明混合方案
+- 组件默认值建议：`engine: 'holistic'`、`delegate: 'CPU'`；性能敏感场景用混合方案（已验证）
+
+### 模型行为漂移存疑（2026-10-24 二次观察）
+
+同一张标注覆盖的多人脸合影图，前一天默认阈值（0.5）可检出 2 张脸，次日 0.3 阈值也检不出（跨 1.1.1 / 0.10.21 两套 wasm、GPU/CPU 一致）；干净大脸（face3）三套栈全部正常检出。怀疑 Google 对 `/float16/1/` 等"版本化"模型 URL 存在原地静默更新。**组件应把阈值全部做成显式配置并默认收紧（如 0.3），不依赖官方默认值。**
 
 ## 五、整理顺序（每步可独立验证）
 
