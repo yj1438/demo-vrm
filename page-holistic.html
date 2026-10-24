@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holistic 全身体识别测试</title>
+  <link rel="stylesheet" href="/src/common/style.css">
+</head>
+<body>
+  <div>
+    <h1>Holistic 全身体识别（脸 + 身体 + 双手，单模型）</h1>
+    <p>
+      模型版本：
+      <select id="J_model_version">
+        <option value="1" selected>float16/1（锁定版本）</option>
+        <option value="latest">float16/latest</option>
+      </select>
+      delegate：
+      <select id="J_delegate">
+        <option value="CPU" selected>CPU（Holistic 的 blendshapes 分支 GPU 下会报 UNIMPLEMENTED）</option>
+        <option value="GPU">GPU</option>
+      </select>
+      <input id="J_btn_image" type="file" accept="image/*" />
+      <button id="J_btn_video">开始摄像头</button>
+      <button id="J_btn_stop">停止</button>
+    </p>
+    <div id="J_info"></div>
+    <div id="J_view" style="position: relative;"></div>
+  </div>
+  <script type="module" src="/src/page-holistic/index.ts"></script>
+</body>
+</html>

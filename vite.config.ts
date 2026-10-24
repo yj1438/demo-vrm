@@ -13,6 +13,7 @@ export default defineConfig({
         'page-tween': resolve(__dirname, 'page-tween.html'),
         'page-uni': resolve(__dirname, 'page-uni.html'),
         'page-vrm': resolve(__dirname, 'page-vrm.html'),
+        'page-holistic': resolve(__dirname, 'page-holistic.html'),
       },
     },
   },
