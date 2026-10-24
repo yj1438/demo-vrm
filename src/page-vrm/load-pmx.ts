@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { MMDLoader } from 'three/addons/loaders/MMDLoader.js';
-import { MMDAnimationHelper } from 'three/addons/animation/MMDAnimationHelper.js';
+// three r172 起官方移除了 MMD 模块，改用维护中的 three-stdlib（r171 版 MMD 模块的延续）
+import { MMDLoader } from 'three-stdlib';
+import { MMDAnimationHelper } from 'three-stdlib';
 
 // mmd
 // https://threejs.org/docs/#examples/en/loaders/MMDLoader
