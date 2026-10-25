@@ -1,3 +1,4 @@
+import { bindImageInput, loadImage } from '../common/example-images';
 import * as vision from '@mediapipe/tasks-vision';
 import { getFilesetResolver } from '../util/mediapipe/common';
 import { getFaceLandmarker } from '../util/mediapipe/face-landmark/index';
@@ -119,18 +120,11 @@ function resultSummary(r: vision.HolisticLandmarkerResult, ms: number, blendshap
 }
 
 // ============ 图片识别 ============
-document.getElementById('J_btn_image')!.addEventListener('change', async (e) => {
-  const file = (e.target as HTMLInputElement).files[0];
-  if (!file) return;
+async function detectImage(source: File | string) {
+  if (stopLoop) stopVideo();
 
   try {
-    const img = new Image();
-    // 注意：img.decode() 对 blob URL 在部分环境下会永久挂起，用 onload 兜底
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error('图片加载失败'));
-      img.src = URL.createObjectURL(file);
-    });
+    const img = await loadImage(source);
 
     viewImage.innerHTML = '';
     const wrap = document.createElement('div');
@@ -157,13 +151,15 @@ document.getElementById('J_btn_image')!.addEventListener('change', async (e) => 
 
     const drawingUtils = new vision.DrawingUtils(canvas.getContext('2d')!);
     drawResult(r, drawingUtils);
-    setInfo(resultSummary(r, ms));
+    setInfo(resultSummary(r, ms, blendshapes));
     setStatus(`完成 · ${ms}ms`, 'is-ok');
   } catch (err) {
     setStatus('识别失败', 'is-error');
     setInfo(`<div class="error-text">${escapeHtml(String((err as Error).message || err))}</div>`);
   }
-});
+}
+
+bindImageInput(document.getElementById('J_btn_image') as HTMLInputElement, viewImage, detectImage);
 
 // ============ 摄像头识别：可启动 / 停止 / 配置变更时自动重启 ============
 async function startVideo() {

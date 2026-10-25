@@ -213,6 +213,24 @@ html, body {
 
 .card-body { padding: 16px; }
 
+.image-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.image-example { padding: 6px 12px 6px 6px; }
+.image-example img {
+  width: 64px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.btn:disabled { cursor: wait; opacity: 0.55; }
+.btn:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+
 /* ---------- 视口（媒体 + 覆盖层）---------- */
 
 .viewport {

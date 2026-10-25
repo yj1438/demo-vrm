@@ -1,3 +1,4 @@
+import { bindImageInput, loadImage } from '../common/example-images';
 import * as vision from '@mediapipe/tasks-vision';
 import { getGestureRecognizer } from '../util/mediapipe/gesture-landmark/index';
 import { showDebugView as showDebugViewForGesture } from '../util/mediapipe/gesture-landmark/debug';
@@ -92,9 +93,8 @@ function clearInfoPanels() {
 /**
  * 图片识别
  */
-btnImage.addEventListener('change', async (e) => {
-  const file = (e.target as HTMLInputElement).files[0];
-  if (!file) return;
+async function detectImage(source: File | string) {
+  if (stopLoop) stopVideo();
 
   try {
     setStatus('加载模型中…', 'is-loading');
@@ -103,13 +103,7 @@ btnImage.addEventListener('change', async (e) => {
     const faceLandmarker = await getFaceLandmarker(faceOpts('IMAGE'));
     const gestureRecognizer = await getGestureRecognizer(gestureOpts('IMAGE'));
 
-    const img = new Image();
-    // 注意：img.decode() 对 blob URL 在部分环境下会永久挂起，用 onload 兜底
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error('图片加载失败'));
-      img.src = URL.createObjectURL(file);
-    });
+    const img = await loadImage(source);
 
     // 重建视口：.media-wrap 由媒体撑开，canvas 绝对定位铺满 —— 对齐交给 CSS
     viewImage.innerHTML = '';
@@ -130,15 +124,17 @@ btnImage.addEventListener('change', async (e) => {
 
     clearInfoPanels();
     showDebugViewForPose(poseResult, { canvas, infoElement: infoPanels.pose });
-    showDebugViewForFace(faceResult, { canvas, infoElement: infoPanels.face });
-    showDebugViewForGesture(gestureResult, { canvas, infoElement: infoPanels.gesture });
+    showDebugViewForFace(faceResult, { canvas, infoElement: infoPanels.face, clearCanvas: false });
+    showDebugViewForGesture(gestureResult, { canvas, infoElement: infoPanels.gesture, clearCanvas: false });
 
     setStatus(`完成 · ${ms}ms`, 'is-ok');
   } catch (err) {
     setStatus('识别失败', 'is-error');
     infoEle.innerHTML = `<div class="error-text">${escapeHtml(String((err as Error).message || err))}</div>`;
   }
-});
+}
+
+bindImageInput(btnImage, viewImage, detectImage);
 
 /**
  * 摄像头识别：可启动 / 停止 / 配置变更时自动重启
